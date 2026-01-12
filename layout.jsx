@@ -5,3 +5,7 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
+export const metadata = {
+  title: "Dockside Alexandria",
+  description: "Coming soon to Alexandria, MN",
+};
