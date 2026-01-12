@@ -1,13 +1,14 @@
 export const metadata = {
   title: "Dockside Alexandria",
-  description: "Luxury lakefront vacation rental on Lake Le Homme Dieu in Alexandria, MN"
+  description: "Lakefront vacation rental in Alexandria, MN",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body style={{ margin: 0, fontFamily: "sans-serif" }}>
+        {children}
+      </body>
     </html>
   );
 }
-
