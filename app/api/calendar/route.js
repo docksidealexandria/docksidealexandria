@@ -20,11 +20,14 @@ export async function GET() {
         end: event.end
       }));
 
-    return Response.json({ bookings });
-  } catch (error) {
+    return new Response(JSON.stringify({ bookings }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (err) {
     return new Response(
-      JSON.stringify({ error: "Failed to load calendar" }),
+      JSON.stringify({ error: "Failed to fetch calendar" }),
       { status: 500 }
     );
   }
 }
+
