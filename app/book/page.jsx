@@ -6,59 +6,63 @@ import "react-day-picker/dist/style.css";
 import { addDays, isBefore } from "date-fns";
 
 export default function BookingPage() {
-  const [blockedRanges, setBlockedRanges] = useState([]);
-  const [range, setRange] = useState();
+  const [blocked, setBlocked] = useState([]);
+  const [range, setRange] = useState({ from: null, to: null });
 
   useEffect(() => {
     fetch("/api/calendar")
       .then((res) => res.json())
       .then((data) => {
-        const disabled = data.bookings.map((b) => ({
+        const blockedDates = data.bookings.map((b) => ({
           from: new Date(b.start),
-          to: new Date(b.end),
+          to: new Date(b.end)
         }));
-        setBlockedRanges(disabled);
+        setBlocked(blockedDates);
       });
   }, []);
 
-  function handleSelect(selectedRange) {
-    if (selectedRange?.from && !selectedRange.to) {
-      selectedRange.to = addDays(selectedRange.from, 1);
+  function handleSelect(selected) {
+    if (!selected?.from) return;
+
+    // Auto-select 1 night minimum
+    if (!selected.to) {
+      setRange({
+        from: selected.from,
+        to: addDays(selected.from, 1)
+      });
+    } else {
+      setRange(selected);
     }
-    setRange(selectedRange);
   }
 
   return (
-    <main style={{ padding: "40px", maxWidth: "900px", margin: "0 auto" }}>
-      <h1 style={{ fontSize: "2.2rem", marginBottom: "10px" }}>
-        Book Your Stay
-      </h1>
-
-      <p style={{ marginBottom: "30px", color: "#555" }}>
-        Select your check-in and check-out dates. Unavailable dates are blocked.
+    <main style={{ maxWidth: 420, margin: "40px auto", fontFamily: "sans-serif" }}>
+      <h1 style={{ fontSize: 28, marginBottom: 10 }}>Book Your Stay</h1>
+      <p style={{ color: "#666", marginBottom: 20 }}>
+        Select your check-in and check-out dates
       </p>
 
       <DayPicker
         mode="range"
         selected={range}
         onSelect={handleSelect}
-        disabled={blockedRanges}
+        disabled={[
+          ...blocked,
+          { before: new Date() }
+        ]}
         numberOfMonths={2}
-        fromDate={new Date()}
+        showOutsideDays
       />
 
-      {range?.from && range?.to && (
-        <div style={{ marginTop: "25px", padding: "15px", border: "1px solid #ddd", borderRadius: "10px" }}>
-          <strong>Selected Dates</strong>
-          <div>Check-in: {range.from.toDateString()}</div>
-          <div>Check-out: {range.to.toDateString()}</div>
+      {range.from && range.to && (
+        <div style={{ marginTop: 20, padding: 16, border: "1px solid #ddd", borderRadius: 8 }}>
+          <strong>Selected stay:</strong>
+          <div>
+            {range.from.toDateString()} → {range.to.toDateString()}
+          </div>
         </div>
       )}
     </main>
   );
 }
-</>
-      )}
-    </main>
-  );
-}
+
