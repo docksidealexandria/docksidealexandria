@@ -1,18 +1,43 @@
-import ical from "node-ical";
-
 export async function GET() {
-  const AIRBNB_ICAL =
-    "https://www.airbnb.com/calendar/ical/1345046922187021169.ics?t=d942422183e145ba83947acffaf36df9";
+  // TODO later: replace this with real bookings from Stripe / DB
+  const bookings = [
+    {
+      start: "2026-07-10",
+      end: "2026-07-13",
+      summary: "Direct Website Booking"
+    }
+  ];
 
-  const data = await ical.fromURL(AIRBNB_ICAL);
+  let ical = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Dockside Alexandria//Booking Calendar//EN
+CALSCALE:GREGORIAN
+`;
 
-  const bookings = Object.values(data)
-    .filter((e) => e.type === "VEVENT")
-    .map((e) => ({
-      start: e.start,
-      end: e.end
-    }));
+  bookings.forEach((b, i) => {
+    const uid = `dockside-${i}@docksidealexandria.com`;
 
-  return Response.json({ bookings });
+    ical += `
+BEGIN:VEVENT
+UID:${uid}
+DTSTAMP:${formatDate(new Date())}
+DTSTART;VALUE=DATE:${formatDate(new Date(b.start))}
+DTEND;VALUE=DATE:${formatDate(new Date(b.end))}
+SUMMARY:${b.summary}
+END:VEVENT
+`;
+  });
+
+  ical += `END:VCALENDAR`;
+
+  return new Response(ical, {
+    headers: {
+      "Content-Type": "text/calendar; charset=utf-8",
+      "Cache-Control": "no-store"
+    }
+  });
 }
 
+function formatDate(date) {
+  return date.toISOString().split("T")[0].replace(/-/g, "");
+}
