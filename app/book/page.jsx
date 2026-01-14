@@ -3,7 +3,12 @@
 import { useState, useEffect } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { differenceInCalendarDays, addDays } from "date-fns";
+import {
+  differenceInCalendarDays,
+  parse,
+  isValid,
+  format
+} from "date-fns";
 
 export default function BookPage() {
   const [range, setRange] = useState();
@@ -11,6 +16,7 @@ export default function BookPage() {
 
   const MIN_NIGHTS = 3;
 
+  // Load blocked dates
   useEffect(() => {
     async function loadBlockedDates() {
       const res = await fetch("/api/calendar");
@@ -33,43 +39,103 @@ export default function BookPage() {
     loadBlockedDates();
   }, []);
 
+  // Calendar selection logic
   function handleSelect(selected) {
-    // First click → set start date only
-    if (!range?.from || (range.from && range.to)) {
-      setRange({ from: selected?.from });
+    if (!selected?.from) {
+      setRange(undefined);
       return;
     }
 
-    // Second click → validate min nights
-    const nights = differenceInCalendarDays(
-      selected.to,
-      selected.from
-    );
+    if (selected.from && selected.to) {
+      const nights = differenceInCalendarDays(
+        selected.to,
+        selected.from
+      );
 
-    if (nights < MIN_NIGHTS) {
-      alert(`Minimum stay is ${MIN_NIGHTS} nights`);
-      return;
+      if (nights < MIN_NIGHTS) {
+        alert(`Minimum stay is ${MIN_NIGHTS} nights`);
+        return;
+      }
     }
 
     setRange(selected);
   }
 
+  // Typed input handlers
+  function handleInputChange(type, value) {
+    const parsed = parse(value, "MM/dd/yyyy", new Date());
+    if (!isValid(parsed)) return;
+
+    if (type === "from") {
+      setRange({ from: parsed });
+    }
+
+    if (type === "to" && range?.from) {
+      const nights = differenceInCalendarDays(parsed, range.from);
+      if (nights < MIN_NIGHTS) {
+        alert(`Minimum stay is ${MIN_NIGHTS} nights`);
+        return;
+      }
+      setRange({ from: range.from, to: parsed });
+    }
+  }
+
   return (
-    <main style={{ padding: "2rem" }}>
+    <main style={{ padding: "2rem", maxWidth: 700 }}>
       <h1 style={{ fontSize: "2rem", marginBottom: "1rem" }}>
         Select Your Stay
       </h1>
 
+      {/* Date Inputs */}
+      <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
+        <div>
+          <label>Check-in</label>
+          <input
+            type="text"
+            placeholder="MM/DD/YYYY"
+            value={range?.from ? format(range.from, "MM/dd/yyyy") : ""}
+            onChange={(e) =>
+              handleInputChange("from", e.target.value)
+            }
+            style={inputStyle}
+          />
+        </div>
+
+        <div>
+          <label>Check-out</label>
+          <input
+            type="text"
+            placeholder="MM/DD/YYYY"
+            value={range?.to ? format(range.to, "MM/dd/yyyy") : ""}
+            onChange={(e) =>
+              handleInputChange("to", e.target.value)
+            }
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      {/* Calendar */}
       <DayPicker
         mode="range"
         selected={range}
         onSelect={handleSelect}
-        disabled={disabledDates}
-        min={MIN_NIGHTS}
         numberOfMonths={2}
         showOutsideDays
+        disabled={disabledDates}
+        modifiers={{
+          blocked: disabledDates
+        }}
+        modifiersStyles={{
+          blocked: {
+            textDecoration: "line-through",
+            color: "#999",
+            backgroundColor: "#f5f5f5"
+          }
+        }}
       />
 
+      {/* Info */}
       {range?.from && !range?.to && (
         <p style={{ marginTop: "1rem", color: "#555" }}>
           Select a checkout date (minimum {MIN_NIGHTS} nights)
@@ -88,3 +154,11 @@ export default function BookPage() {
     </main>
   );
 }
+
+const inputStyle = {
+  padding: "0.5rem",
+  fontSize: "1rem",
+  border: "1px solid #ccc",
+  borderRadius: 6,
+  width: 140
+};
