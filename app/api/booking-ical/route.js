@@ -1,5 +1,4 @@
 export async function GET() {
-  // TODO later: replace this with real bookings from Stripe / DB
   const bookings = [
     {
       start: "2026-07-10",
@@ -21,8 +20,8 @@ CALSCALE:GREGORIAN
 BEGIN:VEVENT
 UID:${uid}
 DTSTAMP:${formatDate(new Date())}
-DTSTART;VALUE=DATE:${formatDate(new Date(b.start))}
-DTEND;VALUE=DATE:${formatDate(new Date(b.end))}
+DTSTART;VALUE=DATE:${b.start.replace(/-/g, "")}
+DTEND;VALUE=DATE:${b.end.replace(/-/g, "")}
 SUMMARY:${b.summary}
 END:VEVENT
 `;
@@ -31,13 +30,18 @@ END:VEVENT
   ical += `END:VCALENDAR`;
 
   return new Response(ical, {
+    status: 200,
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
+      "Content-Disposition": "inline; filename=booking-ical.ics",
       "Cache-Control": "no-store"
     }
   });
 }
 
 function formatDate(date) {
-  return date.toISOString().split("T")[0].replace(/-/g, "");
+  return date
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .split(".")[0] + "Z";
 }
