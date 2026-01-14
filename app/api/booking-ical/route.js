@@ -1,11 +1,6 @@
 export async function GET() {
-  const bookings = [
-    {
-      start: "2026-12-03",
-      end: "2026-12-06",
-      summary: "TEST – Website Booking"
-    }
-  ];
+  // In the next step, bookings will come from Stripe / DB
+  const bookings = [];
 
   let ical = `BEGIN:VCALENDAR
 VERSION:2.0
@@ -17,11 +12,11 @@ METHOD:PUBLISH
   bookings.forEach((b, index) => {
     ical += `
 BEGIN:VEVENT
-UID:dockside-test-${index}@docksidealexandria.com
+UID:dockside-${index}@docksidealexandria.com
 DTSTAMP:${formatDateTime(new Date())}
 DTSTART;VALUE=DATE:${b.start.replace(/-/g, "")}
 DTEND;VALUE=DATE:${b.end.replace(/-/g, "")}
-SUMMARY:${b.summary}
+SUMMARY:${b.summary || "Website Booking"}
 END:VEVENT
 `;
   });
