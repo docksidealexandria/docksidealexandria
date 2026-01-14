@@ -1,31 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import {
   parse,
   isValid,
   format,
-  differenceInCalendarDays
+  differenceInCalendarDays,
+  isAfter
 } from "date-fns";
 
-// configuration
+// price constants (we’ll extend pricing later)
 const MIN_NIGHTS = 3;
-const WEEKDAY_RATE = 750;
-const WEEKEND_RATE = 950;
-const CLEANING_FEE = 200;
 
 export default function BookingPage() {
-  // state
   const [disabledDates, setDisabledDates] = useState([]);
+  const [range, setRange] = useState({ from: null, to: null });
+
+// store input text separately
   const [checkInText, setCheckInText] = useState("");
   const [checkOutText, setCheckOutText] = useState("");
-  const [range, setRange] = useState({ from: null, to: null });
   const [error, setError] = useState("");
-  const [totalPrice, setTotalPrice] = useState(null);
 
-  // load blocked dates
   useEffect(() => {
     fetch("/api/calendar")
       .then((res) => res.json())
@@ -44,7 +41,58 @@ export default function BookingPage() {
       });
   }, []);
 
-  // calendar selection logic
+  // synchronize text inputs into date range
+  function trySyncInputsToCalendar() {
+    setError("");
+
+    const fromParsed = parse(checkInText, "MM/dd/yyyy", new Date());
+    const toParsed = parse(checkOutText, "MM/dd/yyyy", new Date());
+
+    if (
+      isValid(fromParsed) &&
+      (!checkOutText ||
+       (isValid(toParsed) &&
+        isAfter(toParsed, fromParsed))) // require > from
+    ) {
+      const newRange = { from: fromParsed };
+
+      // if to is valid and >= min nights
+      if (isValid(toParsed)) {
+        const nights = differenceInCalendarDays(toParsed, fromParsed);
+        if (nights < MIN_NIGHTS) {
+          setError(`Minimum stay is ${MIN_NIGHTS} nights`);
+        } else {
+          newRange.to = toParsed;
+        }
+      }
+
+      setRange(newRange);
+    }
+  }
+
+  // handle key/blur for checkin
+  function onCheckInKey(e) {
+    setCheckInText(e.target.value);
+    if (e.key === "Enter") {
+      trySyncInputsToCalendar();
+    }
+  }
+  function onCheckInBlur() {
+    trySyncInputsToCalendar();
+  }
+
+  // handle key/blur for checkout
+  function onCheckOutKey(e) {
+    setCheckOutText(e.target.value);
+    if (e.key === "Enter") {
+      trySyncInputsToCalendar();
+    }
+  }
+  function onCheckOutBlur() {
+    trySyncInputsToCalendar();
+  }
+
+  // calendar interactions sync back to inputs
   function handleCalendarSelect(selected) {
     setError("");
     if (!selected?.from) {
@@ -53,65 +101,34 @@ export default function BookingPage() {
       setCheckOutText("");
       return;
     }
+
     const from = selected.from;
-    let to = selected.to ?? null;
+    let to = selected.to;
 
-    // don’t immediately auto select — let user pick
-    setRange({ from, to });
-
+    // enforce minimum nights
     if (to) {
-      setCheckInText(format(from, "MM/dd/yyyy"));
-      setCheckOutText(format(to, "MM/dd/yyyy"));
-      calculatePrice(from, to);
+      const nights = differenceInCalendarDays(to, from);
+      if (nights < MIN_NIGHTS) {
+        setError(`Minimum stay is ${MIN_NIGHTS} nights`);
+        // keep selecting but do not auto-set to
+        to = null;
+      }
     }
+
+    // update text inputs
+    setCheckInText(format(from, "MM/dd/yyyy"));
+    setCheckOutText(to ? format(to, "MM/dd/yyyy") : "");
+
+    setRange({ from, to });
   }
 
-  // typing logic (text → calendar)
-  function handleTextChange(type, value) {
-    setError("");
-    if (type === "from") setCheckInText(value);
-    if (type === "to") setCheckOutText(value);
-
-    const parsedFrom = parse(checkInText, "MM/dd/yyyy", new Date());
-    const parsedTo = parse(checkOutText, "MM/dd/yyyy", new Date());
-
-    if (type === "from" && isValid(parsedFrom)) {
-      setRange({ from: parsedFrom, to: range.to });
-    }
-    if (
-      type === "to" &&
-      isValid(parsedFrom) &&
-      isValid(parsedTo) &&
-      differenceInCalendarDays(parsedTo, parsedFrom) >= MIN_NIGHTS
-    ) {
-      setRange({ from: parsedFrom, to: parsedTo });
-      calculatePrice(parsedFrom, parsedTo);
-    }
-  }
-
-  // price calculation
-  function calculatePrice(from, to) {
-    let nights = differenceInCalendarDays(to, from);
-    let sum = 0;
-    for (let i = 0; i < nights; i++) {
-      let date = new Date(from);
-      date.setDate(date.getDate() + i);
-      const day = date.getDay();
-      // weekend Fri/Sat = 5,6 (0 = Sunday)
-      sum += day === 5 || day === 6 ? WEEKEND_RATE : WEEKDAY_RATE;
-    }
-    sum += CLEANING_FEE;
-    setTotalPrice(sum);
-  }
-
-  // render
   return (
-    <main style={{ padding: "2rem", maxWidth: 720, margin: "auto" }}>
-      <h1 style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>
-        Check Availability
+    <main style={{ padding: "2rem", maxWidth: 700 }}>
+      <h1 style={{ fontSize: "2rem", marginBottom: "1rem" }}>
+        Select Your Stay
       </h1>
 
-      {/* inputs */}
+      {/* date inputs */}
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
         <div style={{ flex: 1 }}>
           <label>Check-in</label>
@@ -119,7 +136,9 @@ export default function BookingPage() {
             type="text"
             placeholder="MM/DD/YYYY"
             value={checkInText}
-            onChange={(e) => handleTextChange("from", e.target.value)}
+            onKeyUp={onCheckInKey}
+            onBlur={onCheckInBlur}
+            onChange={(e) => setCheckInText(e.target.value)}
             style={inputStyle}
           />
         </div>
@@ -129,18 +148,20 @@ export default function BookingPage() {
             type="text"
             placeholder="MM/DD/YYYY"
             value={checkOutText}
-            onChange={(e) => handleTextChange("to", e.target.value)}
+            onKeyUp={onCheckOutKey}
+            onBlur={onCheckOutBlur}
+            onChange={(e) => setCheckOutText(e.target.value)}
             style={inputStyle}
           />
         </div>
       </div>
 
-      {/* calendar */}
       <DayPicker
         mode="range"
         selected={range}
         onSelect={handleCalendarSelect}
         numberOfMonths={2}
+        showOutsideDays
         disabled={disabledDates}
         modifiers={{ blocked: disabledDates }}
         modifiersStyles={{
@@ -150,76 +171,19 @@ export default function BookingPage() {
             backgroundColor: "#f5f5f5"
           }
         }}
-        showOutsideDays
       />
 
-      {/* error */}
       {error && (
         <p style={{ color: "red", marginTop: "1rem" }}>{error}</p>
-      )}
-
-      {/* summary */}
-      {range.from && range.to && (
-        <div
-          style={{
-            marginTop: "2rem",
-            padding: "1.5rem",
-            border: "1px solid #ccc",
-            borderRadius: 8,
-            background: "#fafafa"
-          }}
-        >
-          <h2 style={{ marginBottom: "0.5rem" }}>Reservation Summary</h2>
-          <p>
-            <strong>Check-in:</strong>{" "}
-            {range.from.toDateString()}
-          </p>
-          <p>
-            <strong>Check-out:</strong>{" "}
-            {range.to.toDateString()}
-          </p>
-          <p>
-            <strong>Nights:</strong>{" "}
-            {differenceInCalendarDays(range.to, range.from)}
-          </p>
-          {totalPrice !== null && (
-            <p style={{ fontSize: "1.25rem", fontWeight: "bold" }}>
-              Estimated Total: ${totalPrice.toLocaleString()}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* CTA */}
-      {range.from && range.to && (
-        <button
-          style={buttonStyle}
-          disabled={!range.from || !range.to}
-          onClick={() => alert("Next: guest info / payment")}
-        >
-          Reserve Now
-        </button>
       )}
     </main>
   );
 }
 
-// simple styles
 const inputStyle = {
   padding: "0.6rem",
   fontSize: "1rem",
   border: "1px solid #ccc",
   borderRadius: 6,
   width: "100%"
-};
-
-const buttonStyle = {
-  marginTop: "1.5rem",
-  padding: "0.9rem 1.8rem",
-  fontSize: "1.2rem",
-  backgroundColor: "#004080",
-  color: "white",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer"
 };
