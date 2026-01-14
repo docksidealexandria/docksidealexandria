@@ -1,51 +1,53 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { addDays, differenceInCalendarDays } from "date-fns";
+import { differenceInCalendarDays, addDays } from "date-fns";
 
-export default function BookingPage() {
-  const [blocked, setBlocked] = useState([]);
-  const [range, setRange] = useState({ from: null, to: null });
-  const [error, setError] = useState("");
+export default function BookPage() {
+  const [range, setRange] = useState();
+  const [disabledDates, setDisabledDates] = useState([]);
+
+  const MIN_NIGHTS = 3;
 
   useEffect(() => {
-    fetch("/api/calendar")
-      .then((res) => res.json())
-      .then((data) => {
-        const blockedDates = data.bookings.map((b) => ({
-          from: new Date(b.start),
-          to: new Date(b.end),
-        }));
-        setBlocked(blockedDates);
+    async function loadBlockedDates() {
+      const res = await fetch("/api/calendar");
+      const data = await res.json();
+
+      const disabled = data.bookings.flatMap((b) => {
+        const dates = [];
+        let d = new Date(b.start);
+        const end = new Date(b.end);
+        while (d <= end) {
+          dates.push(new Date(d));
+          d.setDate(d.getDate() + 1);
+        }
+        return dates;
       });
+
+      setDisabledDates(disabled);
+    }
+
+    loadBlockedDates();
   }, []);
 
   function handleSelect(selected) {
-    setError("");
-
-    if (!selected?.from) {
-      setRange({ from: null, to: null });
+    // First click → set start date only
+    if (!range?.from || (range.from && range.to)) {
+      setRange({ from: selected?.from });
       return;
     }
 
-    // Auto-pick next day for checkout
-    if (!selected.to) {
-      setRange({
-        from: selected.from,
-        to: addDays(selected.from, 1),
-      });
-      return;
-    }
-
+    // Second click → validate min nights
     const nights = differenceInCalendarDays(
       selected.to,
       selected.from
     );
 
-    if (nights < 3) {
-      setError("Minimum stay is 3 nights.");
+    if (nights < MIN_NIGHTS) {
+      alert(`Minimum stay is ${MIN_NIGHTS} nights`);
       return;
     }
 
@@ -53,60 +55,34 @@ export default function BookingPage() {
   }
 
   return (
-    <main
-      style={{
-        maxWidth: 520,
-        margin: "40px auto",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      <h1 style={{ fontSize: 30, marginBottom: 10 }}>
-        Book Your Stay
+    <main style={{ padding: "2rem" }}>
+      <h1 style={{ fontSize: "2rem", marginBottom: "1rem" }}>
+        Select Your Stay
       </h1>
-
-      <p style={{ color: "#555", marginBottom: 20 }}>
-        Select your check-in and check-out dates.
-      </p>
 
       <DayPicker
         mode="range"
         selected={range}
         onSelect={handleSelect}
-        disabled={[
-          ...blocked,
-          { before: new Date() },
-        ]}
+        disabled={disabledDates}
+        min={MIN_NIGHTS}
         numberOfMonths={2}
         showOutsideDays
       />
 
-      {error && (
-        <p style={{ color: "red", marginTop: 10 }}>
-          {error}
+      {range?.from && !range?.to && (
+        <p style={{ marginTop: "1rem", color: "#555" }}>
+          Select a checkout date (minimum {MIN_NIGHTS} nights)
         </p>
       )}
 
-      {range.from && range.to && !error && (
-        <div
-          style={{
-            marginTop: 20,
-            padding: 16,
-            border: "1px solid #ddd",
-            borderRadius: 8,
-          }}
-        >
-          <strong>Selected stay</strong>
-          <div>
-            Check-in: {range.from.toDateString()} (3:00 PM)
-          </div>
-          <div>
-            Check-out: {range.to.toDateString()} (11:00 AM)
-          </div>
-          <div style={{ marginTop: 8 }}>
-            Minimum stay: 3 nights
-          </div>
-          <div>No pets</div>
-          <div>$200 cleaning fee</div>
+      {range?.from && range?.to && (
+        <div style={{ marginTop: "1.5rem" }}>
+          <strong>Check-in:</strong>{" "}
+          {range.from.toDateString()}
+          <br />
+          <strong>Check-out:</strong>{" "}
+          {range.to.toDateString()}
         </div>
       )}
     </main>
