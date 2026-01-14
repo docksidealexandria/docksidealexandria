@@ -19,33 +19,19 @@ export default function HomePage() {
         }}
       />
 
-      <section style={{ marginBottom: "30px" }}>
-        <h2>About the Property</h2>
-        <p>
-          Enjoy a relaxing stay right on the water in Alexandria, MN. Perfect
-          for families, lake weekends, and summer getaways.
-        </p>
-        <ul>
-          <li>Lakefront access</li>
-          <li>3-night minimum stay</li>
-          <li>$500 deposit</li>
-          <li>Balance due 14 days before arrival</li>
-        </ul>
-      </section>
-
       <a
         href="/book"
         style={{
           display: "inline-block",
-          padding: "15px 25px",
-          backgroundColor: "#0070f3",
+          padding: "14px 24px",
+          backgroundColor: "#0f172a",
           color: "white",
-          textDecoration: "none",
           borderRadius: "8px",
+          textDecoration: "none",
           fontSize: "1.1rem",
         }}
       >
-        Check Availability & Book
+        Check Availability
       </a>
     </main>
   );
