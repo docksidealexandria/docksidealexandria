@@ -1,33 +1,18 @@
 import ical from "node-ical";
 
 export async function GET() {
-  try {
-    const url = process.env.AIRBNB_ICAL_URL;
+  const AIRBNB_ICAL =
+    "https://www.airbnb.com/calendar/ical/YOUR_LISTING_ID.ics";
 
-    if (!url) {
-      return new Response(
-        JSON.stringify({ error: "Missing AIRBNB_ICAL_URL" }),
-        { status: 500 }
-      );
-    }
+  const data = await ical.fromURL(AIRBNB_ICAL);
 
-    const events = await ical.fromURL(url);
+  const bookings = Object.values(data)
+    .filter((e) => e.type === "VEVENT")
+    .map((e) => ({
+      start: e.start,
+      end: e.end
+    }));
 
-    const bookings = Object.values(events)
-      .filter(event => event.type === "VEVENT")
-      .map(event => ({
-        start: event.start,
-        end: event.end
-      }));
-
-    return new Response(JSON.stringify({ bookings }), {
-      headers: { "Content-Type": "application/json" }
-    });
-  } catch (err) {
-    return new Response(
-      JSON.stringify({ error: "Failed to fetch calendar" }),
-      { status: 500 }
-    );
-  }
+  return Response.json({ bookings });
 }
 
