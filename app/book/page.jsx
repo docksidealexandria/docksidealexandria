@@ -3,16 +3,53 @@
 import { useEffect, useState } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { differenceInCalendarDays, format } from "date-fns";
+import {
+  differenceInCalendarDays,
+  format,
+  addDays,
+  isSameDay
+} from "date-fns";
 
 const MIN_NIGHTS = 3;
+
+// Pricing
+const WEEKDAY_RATE = 750;
+const WEEKEND_RATE = 950;
+const HOLIDAY_RATE = 1100;
+
+// Define holiday weekends (can expand later)
+const HOLIDAYS = [
+  // New Year’s Day
+  new Date("2026-01-01"),
+  // Memorial Day (May 25, 2026)
+  new Date("2026-05-25"),
+  // Independence Day
+  new Date("2026-07-04"),
+  // Labor Day (Sept 7, 2026)
+  new Date("2026-09-07"),
+  // Thanksgiving (Nov 26, 2026)
+  new Date("2026-11-26"),
+];
+
+function isHolidayRange(date) {
+  return HOLIDAYS.some((holiday) => {
+    return (
+      isSameDay(date, holiday) ||
+      isSameDay(date, addDays(holiday, -1)) || // Thursday before
+      isSameDay(date, addDays(holiday, -2)) || // Wednesday buffer
+      isSameDay(date, addDays(holiday, 1)) ||  // Friday after
+      isSameDay(date, addDays(holiday, 2))     // Monday after
+    );
+  });
+}
 
 export default function BookPage() {
   const [range, setRange] = useState();
   const [disabledDates, setDisabledDates] = useState([]);
   const [error, setError] = useState("");
+  const [pricing, setPricing] = useState([]);
 
-  // Load blocked dates from Airbnb sync
+  // Load blocked dates
   useEffect(() => {
     async function loadBlockedDates() {
       const res = await fetch("/api/calendar");
@@ -35,9 +72,10 @@ export default function BookPage() {
     loadBlockedDates();
   }, []);
 
-  // Calendar selection logic
+  // Calendar selection
   function handleSelect(selected) {
     setError("");
+    setPricing([]);
 
     if (!selected?.from) {
       setRange(undefined);
@@ -54,9 +92,41 @@ export default function BookPage() {
         setError(`Minimum stay is ${MIN_NIGHTS} nights`);
         return;
       }
+
+      calculatePricing(selected.from, selected.to);
     }
 
     setRange(selected);
+  }
+
+  function calculatePricing(from, to) {
+    const nightly = [];
+    let total = 0;
+    let current = new Date(from);
+
+    while (current < to) {
+      let rate = WEEKDAY_RATE;
+      let label = "Weeknight";
+
+      if (isHolidayRange(current)) {
+        rate = HOLIDAY_RATE;
+        label = "Holiday";
+      } else if (current.getDay() === 5 || current.getDay() === 6) {
+        rate = WEEKEND_RATE;
+        label = "Weekend";
+      }
+
+      nightly.push({
+        date: format(current, "EEE, MMM d"),
+        rate,
+        label
+      });
+
+      total += rate;
+      current = addDays(current, 1);
+    }
+
+    setPricing({ nightly, total });
   }
 
   const canBook = range?.from && range?.to;
@@ -67,20 +137,15 @@ export default function BookPage() {
         Book Your Stay
       </h1>
 
-      <p style={{ marginBottom: "1.5rem", color: "#555" }}>
-        Select your check-in and check-out dates
-      </p>
-
-      {/* Calendar */}
       <DayPicker
         mode="range"
         selected={range}
         onSelect={handleSelect}
         numberOfMonths={2}
-        showOutsideDays
-        captionLayout="dropdown"   // shows month + YEAR selector
+        captionLayout="dropdown"
         fromYear={new Date().getFullYear()}
         toYear={new Date().getFullYear() + 2}
+        showOutsideDays
         disabled={disabledDates}
         modifiers={{ blocked: disabledDates }}
         modifiersStyles={{
@@ -92,13 +157,10 @@ export default function BookPage() {
         }}
       />
 
-      {/* Error */}
-      {error && (
-        <p style={{ color: "red", marginTop: "1rem" }}>{error}</p>
-      )}
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
-      {/* Summary */}
-      {range?.from && range?.to && (
+      {/* Pricing Summary */}
+      {pricing?.nightly && (
         <div
           style={{
             marginTop: "2rem",
@@ -108,30 +170,41 @@ export default function BookPage() {
             background: "#fafafa"
           }}
         >
-          <h2 style={{ marginBottom: "0.5rem" }}>
-            Your Reservation
-          </h2>
-          <p>
-            <strong>Check-in:</strong>{" "}
-            {format(range.from, "MMMM d, yyyy")}
-          </p>
-          <p>
-            <strong>Check-out:</strong>{" "}
-            {format(range.to, "MMMM d, yyyy")}
-          </p>
-          <p>
-            <strong>Nights:</strong>{" "}
-            {differenceInCalendarDays(range.to, range.from)}
-          </p>
+          <h2>Pricing Summary</h2>
+
+          {pricing.nightly.map((n, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: 6
+              }}
+            >
+              <span>{n.date} ({n.label})</span>
+              <span>${n.rate}</span>
+            </div>
+          ))}
+
+          <hr style={{ margin: "1rem 0" }} />
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: "1.25rem",
+              fontWeight: "bold"
+            }}
+          >
+            <span>Total</span>
+            <span>${pricing.total.toLocaleString()}</span>
+          </div>
         </div>
       )}
 
-      {/* Book Now Button */}
+      {/* Book Now */}
       <button
         disabled={!canBook}
-        onClick={() => {
-          alert("Next step: guest info & payment");
-        }}
         style={{
           marginTop: "2rem",
           padding: "1rem 2rem",
@@ -148,3 +221,4 @@ export default function BookPage() {
     </main>
   );
 }
+
